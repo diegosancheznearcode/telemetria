@@ -32,7 +32,7 @@ const Dashboard = () => {
     { stroke: "#f687b3", fill: "#f687b3", text: "#97266d" },
   ];
 
-  // 📊 Consumir datos históricos de telemetría (Llamada limpia sin Token JWT)
+  // 📊 Consumir datos históricos de telemetría
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -44,7 +44,7 @@ const Dashboard = () => {
       });
       
       if (response.status === 401 || response.status === 403) {
-        console.error("❌ Error de Acceso: La API sigue solicitando autenticación en AWS.");
+        console.error("❌ Error de Acceso: El servicio respondió con 401/403.");
         return;
       }
 
@@ -203,7 +203,7 @@ const Dashboard = () => {
   };
 
   // =========================================================================
-  // 🤖 INTERACCIÓN CON EL AGENTE IA (Consulta pública sin Token JWT)
+  // 🤖 INTERACCIÓN CON EL AGENTE IA
   // =========================================================================
   const handleSendChatMessage = async () => {
     if (!chatInput.trim() || chatLoading) return;
@@ -226,7 +226,7 @@ const Dashboard = () => {
       if (response.status === 401 || response.status === 403) {
         setMessages(prev => [...prev, { 
           sender: 'agent', 
-          text: "❌ Error de Acceso (401/403): El endpoint del Agente Cognitivo requiere un token de autenticación en AWS.", 
+          text: "❌ Error de Acceso: El servicio devolvió 401/403.", 
           timestamp: new Date().toLocaleTimeString() 
         }]);
         return;
