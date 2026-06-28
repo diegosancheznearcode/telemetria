@@ -8,11 +8,8 @@ const Dashboard = () => {
   const [selectedSensor, setSelectedSensor] = useState('ALL');
   const [loading, setLoading] = useState(true);
 
-  // 📆 Estados de Filtrado Temporal y Granularidad
-  const [reportType, setReportType] = useState('HOURLY'); 
-  const [selectedDay, setSelectedDay] = useState('2026-05-25'); 
-  const [selectedMonth, setSelectedMonth] = useState('2026-05'); 
-  const [selectedYear, setSelectedYear] = useState('2026'); 
+  // 📆 Filtro único por día (seleccione el día a evaluar)
+  const [selectedDay, setSelectedDay] = useState('2026-05-25');
 
   // ⚡ Estados para el Chat del Agente de IA
   const [messages, setMessages] = useState([]);
@@ -250,7 +247,31 @@ const Dashboard = () => {
   };
 
   const visibleSensors = selectedSensor === 'ALL' ? sensors : [selectedSensor];
-  const chartDataAggregated = getAggregatedData();
+
+  // Devuelve datos horarios para la clave solicitada ('temperatura' | 'humedad' | 'presion')
+  const getHourlyData = (key) => {
+    let filtered = selectedSensor === 'ALL' ? rawData : rawData.filter(d => d.id === selectedSensor);
+    return filtered
+      .filter(item => {
+        const dateObj = item.fecha_registro ? new Date(item.fecha_registro) : new Date(item.timestamp * (item.timestamp < 1000000000000 ? 1000 : 1));
+        if (isNaN(dateObj.getTime())) return false;
+        const dayLabel = dateObj.toISOString().split('T')[0];
+        return dayLabel === selectedDay;
+      })
+      .map(item => {
+        const dateObj = item.fecha_registro ? new Date(item.fecha_registro) : new Date(item.timestamp * (item.timestamp < 1000000000000 ? 1000 : 1));
+        return {
+          label: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          value: key === 'temperatura' ? item.temperatura : key === 'humedad' ? item.humedad : item.presion,
+          rawTime: dateObj.getTime()
+        };
+      })
+      .sort((a, b) => a.rawTime - b.rawTime);
+  };
+
+  const tempData = getHourlyData('temperatura');
+  const humData = getHourlyData('humedad');
+  const presData = getHourlyData('presion');
 
   return (
     <div style={{ padding: '20px', backgroundColor: '#f0f4f8', minHeight: '100vh', fontFamily: 'monospace' }}>
@@ -285,74 +306,76 @@ const Dashboard = () => {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <span style={{ fontSize: '10px', color: '#718096', fontWeight: 'bold' }}>📊 TIPO DE VISUALIZACIÓN</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #cbd5e0', padding: '6px 10px', borderRadius: '4px' }}>
-            <BarChart2 size={12} style={{ color: '#4a5568' }} />
-            <select value={reportType} onChange={(e) => setReportType(e.target.value)} style={{ border: 'none', outline: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', color: '#4a5568' }}>
-              <option value="HOURLY">⏱️ COMPORTAMIENTO TIEMPO REAL (UN DÍA)</option>
-              <option value="DAILY">📈 TENDENCIA DIARIA (POR DÍAS)</option>
-              <option value="MONTHLY">📅 TENDENCIA MENSUAL (POR MESES)</option>
-            </select>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <span style={{ fontSize: '10px', color: '#718096', fontWeight: 'bold' }}>📅 PERIODO DE EVALUACIÓN</span>
+          <span style={{ fontSize: '10px', color: '#718096', fontWeight: 'bold' }}>📅 DIA A EVALUAR</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #cbd5e0', padding: '6px 10px', borderRadius: '4px' }}>
             <Calendar size={12} style={{ color: '#4a5568' }} />
-            {reportType === 'HOURLY' && (
-              <input type="date" value={selectedDay} onChange={(e) => setSelectedDay(e.target.value)} style={{ border: 'none', outline: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', color: '#4a5568' }} />
-            )}
-            {reportType === 'DAILY' && (
-              <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} style={{ border: 'none', outline: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', color: '#4a5568' }} />
-            )}
-            {reportType === 'MONTHLY' && (
-              <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} style={{ border: 'none', outline: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', color: '#4a5568' }}>
-                <option value="2026">Año 2026</option>
-                <option value="2025">Año 2025</option>
-              </select>
-            )}
+            <input type="date" value={selectedDay} onChange={(e) => setSelectedDay(e.target.value)} style={{ border: 'none', outline: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', color: '#4a5568' }} />
           </div>
         </div>
       </div>
 
-      {/* Bloque del Reporte Histórico */}
-      <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '20px', marginBottom: '30px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#1a365d', marginBottom: '15px', fontSize: '14px', borderBottom: '2px solid #3182ce', paddingBottom: '5px' }}>
-          <Calendar size={16} /> 
-          REPORTE HISTÓRICO: {
-            reportType === 'HOURLY' ? `VALORES REALES EN TIEMPO REAL DEL DÍA [${selectedDay}]` :
-            reportType === 'DAILY' ? `TENDENCIA DIARIA DEL MES [${selectedMonth}]` : 
-            `TENDENCIA MENSUAL DEL AÑO [${selectedYear}]`
-          }
+      {/* Bloque del Reporte Histórico (Tres gráficas independientes) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '18px', marginBottom: '30px' }}>
+        <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#1a365d', marginBottom: '12px', fontSize: '14px', borderBottom: '2px solid #3182ce', paddingBottom: '6px' }}>
+            <Calendar size={16} /> REPORTE HORARIO: {selectedDay}
+          </div>
+          {(tempData.length === 0 && humData.length === 0 && presData.length === 0) ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: '#a0aec0', fontSize: '12px' }}>
+              ⚠️ No se encontraron registros para el día seleccionado.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+              {/* Temperatura */}
+              <div style={{ backgroundColor: '#fff', border: '1px solid #edf2f7', borderRadius: '6px', padding: '10px' }}>
+                <div style={{ fontWeight: 'bold', color: '#2c5282', marginBottom: '6px' }}>Temperatura (°C)</div>
+                <div style={{ height: '160px' }}>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <AreaChart data={tempData} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="label" fontSize={10} tick={{fill: '#718096'}} />
+                      <YAxis fontSize={10} tick={{fill: '#718096'}} />
+                      <Tooltip contentStyle={{borderRadius: '8px', border: 'none'}} formatter={(val) => [val, '°C']} />
+                      <Area type="monotone" dataKey="value" stroke="#3182ce" fill="#90cdf4" fillOpacity={0.2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Humedad */}
+              <div style={{ backgroundColor: '#fff', border: '1px solid #edf2f7', borderRadius: '6px', padding: '10px' }}>
+                <div style={{ fontWeight: 'bold', color: '#2c7a7b', marginBottom: '6px' }}>Humedad (%)</div>
+                <div style={{ height: '160px' }}>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <AreaChart data={humData} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="label" fontSize={10} tick={{fill: '#718096'}} />
+                      <YAxis fontSize={10} tick={{fill: '#718096'}} />
+                      <Tooltip contentStyle={{borderRadius: '8px', border: 'none'}} formatter={(val) => [val, '%']} />
+                      <Area type="monotone" dataKey="value" stroke="#48bb78" fill="#a3e635" fillOpacity={0.15} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Presión */}
+              <div style={{ backgroundColor: '#fff', border: '1px solid #edf2f7', borderRadius: '6px', padding: '10px' }}>
+                <div style={{ fontWeight: 'bold', color: '#9c4221', marginBottom: '6px' }}>Presión (hPa)</div>
+                <div style={{ height: '160px' }}>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <AreaChart data={presData} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="label" fontSize={10} tick={{fill: '#718096'}} />
+                      <YAxis fontSize={10} tick={{fill: '#718096'}} />
+                      <Tooltip contentStyle={{borderRadius: '8px', border: 'none'}} formatter={(val) => [val, 'hPa']} />
+                      <Area type="monotone" dataKey="value" stroke="#ed8936" fill="#fbd38d" fillOpacity={0.12} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-        {chartDataAggregated.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#a0aec0', fontSize: '12px' }}>
-            ⚠️ No se encontraron registros que coincidan con los filtros seleccionados.
-          </div>
-        ) : (
-          <div style={{ height: '220px', width: '100%', minWidth: 0 }}>
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={chartDataAggregated} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
-                <XAxis dataKey="label" fontSize={10} tick={{fill: '#718096'}} />
-                <YAxis fontSize={10} tick={{fill: '#718096'}} />
-                <Tooltip 
-                  contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
-                  formatter={(value, name) => {
-                    if (name === "realTemp") return [`${value} °C`, "Temperatura Real"];
-                    if (name === "realHum") return [`${value} %`, "Humedad Real"];
-                    if (name === "realPres") return [`${value} hPa`, "Presión Real"];
-                    return [value, name];
-                  }}
-                />
-                <Area type="monotone" dataKey="realTemp" name="realTemp" stroke="#3182ce" fill="#90cdf4" fillOpacity={0.1} strokeWidth={2} />
-                <Area type="monotone" dataKey="realHum" name="realHum" stroke="#48bb78" fill="#a3e635" fillOpacity={0.05} strokeWidth={2} />
-                <Area type="monotone" dataKey="realPres" name="realPres" stroke="#ed8936" fill="#fbd38d" fillOpacity={0.03} strokeWidth={1} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        )}
       </div>
 
       {/* Contenedor del Chat del Agente IA */}
