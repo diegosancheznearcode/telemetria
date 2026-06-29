@@ -85,12 +85,15 @@ const Dashboard = () => {
       .sort((a, b) => a.timestamp - b.timestamp);
 
     if (sensorData.length === 0) return { data: [], min: 0, max: 0, avg: 0, current: 0, currentPres: 0 };
+    // Normalizar temperaturas a números finitos antes de calcular estadísticas
+    const temps = sensorData
+      .map(d => Number(d.temperatura))
+      .filter(t => Number.isFinite(t));
 
-    const temps = sensorData.map(d => d.temperatura).filter(t => !isNaN(t));
     const current = temps.length > 0 ? temps[temps.length - 1] : 0;
     const min = temps.length > 0 ? Math.min(...temps) : 0;
     const max = temps.length > 0 ? Math.max(...temps) : 0;
-    const avg = temps.length > 0 ? (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1) : 0;
+    const avg = temps.length > 0 ? parseFloat((temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1)) : 0;
     const currentPres = sensorData.length > 0 ? (sensorData[sensorData.length - 1].presion || 0) : 0;
 
     return { 
