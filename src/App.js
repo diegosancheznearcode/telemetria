@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { RefreshCw, Activity, Calendar, Sliders, BarChart2, Bot, Send } from 'lucide-react';
+import { RefreshCw, Activity, Calendar, Sliders, Bot, Send } from 'lucide-react';
 
 const Dashboard = () => {
   const [rawData, setRawData] = useState([]);
@@ -77,99 +77,7 @@ const Dashboard = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, chatLoading]);
 
-  // =========================================================
-  // ⚙️ MOTOR DE PROCESAMIENTO TEMPORAL
-  // =========================================================
-  const getAggregatedData = () => {
-    let filtered = selectedSensor === 'ALL' 
-      ? rawData 
-      : rawData.filter(d => d.id === selectedSensor);
-
-    if (filtered.length === 0) return [];
-
-    if (reportType === 'HOURLY') {
-      return filtered
-        .filter(item => {
-          let dateObj = item.fecha_registro ? new Date(item.fecha_registro) : new Date(item.timestamp * (item.timestamp < 1000000000000 ? 1000 : 1));
-          if (isNaN(dateObj.getTime())) return false;
-          const dayLabel = dateObj.toISOString().split('T')[0]; 
-          return dayLabel === selectedDay;
-        })
-        .map(item => {
-          let dateObj = item.fecha_registro ? new Date(item.fecha_registro) : new Date(item.timestamp * (item.timestamp < 1000000000000 ? 1000 : 1));
-          return {
-            label: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), 
-            realTemp: item.temperatura,
-            realHum: item.humedad,
-            realPres: item.presion,
-            rawTime: dateObj.getTime()
-          };
-        })
-        .sort((a, b) => a.rawTime - b.rawTime); 
-    }
-
-    if (reportType === 'DAILY') {
-      const dailyGroups = filtered.reduce((acc, item) => {
-        let dateObj = item.fecha_registro ? new Date(item.fecha_registro) : new Date(item.timestamp * (item.timestamp < 1000000000000 ? 1000 : 1));
-        if (isNaN(dateObj.getTime())) return acc;
-        
-        const isoString = dateObj.toISOString();
-        const yearMonth = isoString.substring(0, 7);
-        const dayLabel = isoString.split('T')[0];
-
-        if (yearMonth !== selectedMonth) return acc;
-
-        if (!acc[dayLabel]) {
-          acc[dayLabel] = { tempSum: 0, humSum: 0, presSum: 0, count: 0 };
-        }
-
-        acc[dayLabel].tempSum += item.temperatura || 0;
-        acc[dayLabel].humSum += item.humedad || 0;
-        acc[dayLabel].presSum += item.presion || 0;
-        acc[dayLabel].count += 1;
-
-        return acc;
-      }, {});
-
-      return Object.keys(dailyGroups).map(date => ({
-        label: date,
-        realTemp: parseFloat((dailyGroups[date].tempSum / dailyGroups[date].count).toFixed(1)),
-        realHum: parseFloat((dailyGroups[date].humSum / dailyGroups[date].count).toFixed(1)),
-        realPres: parseFloat((dailyGroups[date].presSum / dailyGroups[date].count).toFixed(1))
-      })).sort((a, b) => new Date(a.label) - new Date(b.label));
-    } 
-    
-    else {
-      const monthlyGroups = filtered.reduce((acc, item) => {
-        let dateObj = item.fecha_registro ? new Date(item.fecha_registro) : new Date(item.timestamp * (item.timestamp < 1000000000000 ? 1000 : 1));
-        if (isNaN(dateObj.getTime())) return acc;
-
-        const currentYear = dateObj.getFullYear().toString();
-        const monthLabel = dateObj.toLocaleString('es-ES', { year: 'numeric', month: 'short' }); 
-
-        if (currentYear !== selectedYear) return acc;
-
-        if (!acc[monthLabel]) {
-          acc[monthLabel] = { tempSum: 0, humSum: 0, presSum: 0, count: 0, rawMonthNum: dateObj.getMonth() };
-        }
-
-        acc[monthLabel].tempSum += item.temperatura || 0;
-        acc[monthLabel].humSum += item.humedad || 0;
-        acc[monthLabel].presSum += item.presion || 0;
-        acc[monthLabel].count += 1;
-
-        return acc;
-      }, {});
-
-      return Object.keys(monthlyGroups).map(month => ({
-        label: month,
-        realTemp: parseFloat((monthlyGroups[month].tempSum / monthlyGroups[month].count).toFixed(1)),
-        realHum: parseFloat((monthlyGroups[month].humSum / monthlyGroups[month].count).toFixed(1)),
-        realPres: parseFloat((monthlyGroups[month].presSum / monthlyGroups[month].count).toFixed(1)),
-        sortOrder: monthlyGroups[month].rawMonthNum
-      })).sort((a, b) => a.sortOrder - b.sortOrder);
-    }
-  };
+  // (Removed legacy aggregation modes — charts now use per-metric hourly data)
 
   const getSensorStats = (sensorId) => {
     const sensorData = rawData
